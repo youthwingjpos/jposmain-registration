@@ -326,6 +326,24 @@
         .copy-btn:hover { background: rgba(200, 16, 46, 0.26); }
         .copy-btn.copied { background: var(--red); color: #fff; border-color: var(--red); }
 
+
+        /* Live capacity banner + refund field */
+        .capacity-banner {
+            display: none; margin-bottom: 25px; padding: 20px 22px; border-radius: 16px;
+            animation: slideDown 0.5s ease-out; text-align: center;
+        }
+        .capacity-banner.show { display: block; }
+        .capacity-banner.cb-open { background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.4); }
+        .capacity-banner.cb-full { background: linear-gradient(135deg, #b45309 0%, #92400e 100%); border: 1px solid rgba(251, 191, 36, 0.55); }
+        .cb-title { font-weight: 800; font-size: 1.12em; margin-bottom: 6px; letter-spacing: 0.3px; }
+        .cb-open .cb-title { color: #34d399; }
+        .cb-full .cb-title { color: #fff; }
+        .cb-text { font-size: 0.93em; line-height: 1.55; }
+        .cb-open .cb-text { color: var(--silver); }
+        .cb-full .cb-text { color: #fef3c7; }
+        #refundGroup { display: none; }
+        #refundGroup.show { display: block; }
+
         @media (max-width: 600px) {
             h1 { font-size: 2.4em; }
             .title-1 { font-size: 1.6em; }
@@ -382,11 +400,16 @@
                 <h2>🕒 You're on the Waiting List</h2>
                 <div class="wl-number">Waiting List No. <strong id="waitlistNumber">–</strong></div>
                 <p class="wl-text">
-                    All <strong id="waitlistCapacity">80</strong> spots for Mohan Bagh Khel Utsav are already confirmed,
+                    All <strong id="waitlistCapacity">20</strong> JPOSMAIN spots for Mohan Bagh Khel Utsav are already confirmed,
                     so your registration has been recorded on the waiting list. If a spot opens up we'll contact you
                     on the mobile number you gave — in waiting list order.
                 </p>
-                <p class="wl-refund">💰 Your ₹200 is safe — the fee only becomes non-refundable once your spot is confirmed. If you don't get a spot, it will be refunded in full.</p>
+                <p class="wl-refund" id="wlRefund">💰 Your ₹200 is safe — the fee only becomes non-refundable once your spot is confirmed. If you don't get a spot, it will be refunded in full.</p>
+            </div>
+
+            <div class="capacity-banner" id="capacityBanner">
+                <div class="cb-title" id="cbTitle"></div>
+                <div class="cb-text" id="cbText"></div>
             </div>
 
             <div class="error-message" id="errorMessage">
@@ -489,6 +512,13 @@
                     <div id="screenshotPreview"></div>
                 </div>
 
+                <div class="form-group" id="refundGroup">
+                    <label for="refundUpi">Refund UPI ID / GPay Number <span class="required">*</span></label>
+                    <input type="text" id="refundUpi" name="refundUpi" placeholder="e.g. 9876543210@ybl or 9876543210" autocomplete="off">
+                    <div class="help-text">Required for the waiting list. If you don't get a confirmed spot, your &#8377;200 is refunded to this UPI ID / GPay number.</div>
+                </div>
+
+
                 <!-- Declaration -->
                 <div class="section-header">Declaration</div>
                 <div class="declaration">
@@ -527,6 +557,7 @@
         //    auto-fill. Name / phone / DOB are typed in by hand. Every row is
         //    tagged with this club name so the admin can tell the forms apart.
         const CLUB = "JPOSMAIN";
+        const CLUB_KEY = "jposmain";
         // ============================================================
 
         // Build the UPI deep link + QR from the config above
@@ -555,6 +586,8 @@
                 this.value = this.value.replace(/\D/g, '').slice(0, 10);
             });
 
+            checkCapacity();   // ask the server if this club is already full
+
             // Recalculate age whenever DOB changes
             document.getElementById('dob').addEventListener('change', updateAgeFromDob);
 
@@ -566,6 +599,51 @@
             document.getElementById('copySupportBtn').addEventListener('click', function () { copyText(document.getElementById('supportNumber').textContent.trim(), this); });
 
         });
+
+
+        // ---- Live capacity check: are this club's spots already full? ----
+        let waitlistMode = false;
+
+        async function checkCapacity() {
+            try {
+                const res = await fetch(GOOGLE_SHEETS_URL);
+                const stats = await res.json();
+                const st = stats && stats['jposmain'];
+                if (!st || typeof st.spotsLeft !== 'number') return;
+                if (st.spotsLeft <= 0) enterWaitlistMode(st); else showSpotsLeft(st);
+            } catch (e) {
+                // Non-fatal: the form still works and the SERVER decides the real
+                // status on submit. We just can't warn them up front.
+                console.warn('Capacity check failed', e);
+            }
+        }
+
+        function showSpotsLeft(st) {
+            const b = document.getElementById('capacityBanner');
+            b.className = 'capacity-banner cb-open show';
+            document.getElementById('cbTitle').textContent =
+                st.spotsLeft + ' of ' + st.capacity + ' spots left';
+            document.getElementById('cbText').textContent =
+                'Register now to confirm your spot. Once all ' + st.capacity +
+                ' are taken, further registrations join the waiting list.';
+        }
+
+        function enterWaitlistMode(st) {
+            waitlistMode = true;
+            const b = document.getElementById('capacityBanner');
+            b.className = 'capacity-banner cb-full show';
+            document.getElementById('cbTitle').textContent = 'Slots Full - Join the Waiting List';
+            document.getElementById('cbText').innerHTML =
+                'All <strong>' + st.capacity + '</strong> JPOSMAIN spots are taken' +
+                (st.waiting ? ' (' + st.waiting + ' already waiting)' : '') + '. ' +
+                'You can still register for the waiting list. <strong>If you get a confirmed spot, ' +
+                'the &#8377;200 is non-refundable. If you don\'t, it is refunded in full</strong> - ' +
+                'so please give a refund UPI ID below.';
+            // Reveal + require the refund destination
+            document.getElementById('refundGroup').classList.add('show');
+            const btn = document.querySelector('.submit-btn');
+            if (btn) btn.textContent = 'Join Waiting List';
+        }
 
         // ---- Copy-to-clipboard helper ----
         function copyText(text, btn) {
@@ -671,6 +749,16 @@
                 return;
             }
 
+            // The refund destination is mandatory when joining the waiting list.
+            if (waitlistMode) {
+                const refund = document.getElementById('refundUpi').value.trim();
+                if (!refund) {
+                    showError('Please enter a UPI ID or GPay number so we can refund your ₹200 if you do not get a spot.', 'Refund Details Needed');
+                    document.getElementById('refundUpi').focus();
+                    return;
+                }
+            }
+
             const submitBtn = this.querySelector('button[type="submit"]');
             submitBtn.textContent = 'Submitting...';
             submitBtn.disabled = true;
@@ -691,6 +779,7 @@
                 amount:       AMOUNT,
                 paymentRef:   document.getElementById('paymentRef').value.trim(),
                 paymentScreenshot: paymentScreenshotData,
+                refundUpi:    document.getElementById('refundUpi').value.trim(),
                 declaration:  'Yes',
                 club:         CLUB,
                 tournament:   'Mohan Bagh Khel Utsav',
@@ -707,7 +796,13 @@
                 // lock), so the number shown here always matches what's saved.
                 if (result.status === 'Waiting List') {
                     document.getElementById('waitlistNumber').textContent = result.waitingNo;
-                    document.getElementById('waitlistCapacity').textContent = result.capacity || 80;
+                    document.getElementById('waitlistCapacity').textContent = result.capacity || 20;
+                    const refundGiven = document.getElementById('refundUpi').value.trim();
+                    document.getElementById('wlRefund').innerHTML = refundGiven
+                        ? '&#128176; Your ₹200 is safe — the fee only becomes non-refundable once your spot is confirmed. '
+                          + "If you don't get a spot, it will be refunded in full to <strong>" + refundGiven + "</strong>."
+                        : '&#128176; Your ₹200 is safe — the fee only becomes non-refundable once your spot is confirmed. '
+                          + "If you don't get a spot it will be refunded in full — please WhatsApp your refund UPI ID to <strong>8939225539</strong>.";
                     document.getElementById('waitlistMessage').classList.add('show');
                 } else {
                     if (result.positionUnknown) {
