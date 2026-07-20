@@ -255,6 +255,15 @@
         .pay-details { flex: 1; min-width: 200px; }
         .pay-details p { margin-bottom: 8px; color: var(--silver); }
         .gpay-number { font-size: 1.5em; font-weight: 800; color: #fff; letter-spacing: 1px; }
+
+        .marital-block {
+            display: none; margin-top: 12px; padding: 16px 18px; border-radius: 12px;
+            background: rgba(200, 16, 46, 0.14); border: 1px solid rgba(239, 61, 75, 0.55);
+            color: #fecaca; font-size: 0.93em; line-height: 1.55;
+        }
+        .marital-block.show { display: block; }
+        .marital-block strong { color: #fff; }
+
         /* Screenshot upload */
         .upload-box {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -419,28 +428,55 @@
 
             <form id="registrationForm">
                 <!-- Player Details -->
-                <div class="section-header">Player Details</div>
+                <div class="section-header">Registration Details</div>
+                <p class="help-text" style="margin:-8px 0 18px 0;">
+                    Only <strong>unmarried children of JPOS members</strong> are eligible to play.
+                </p>
 
                 <div class="form-group">
-                    <label for="name">Name <span class="required">*</span></label>
-                    <input type="text" id="name" name="name" required placeholder="Your full name" autocomplete="name">
+                    <label for="memberName">JPOS Member's Name <span class="required">*</span></label>
+                    <input type="text" id="memberName" name="memberName" required placeholder="Name of the JPOS member" autocomplete="off">
+                    <div class="help-text">The member whose child is registering</div>
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number <span class="required">*</span></label>
+                    <label for="name">Player's Name <span class="required">*</span></label>
+                    <input type="text" id="name" name="name" required placeholder="Full name of the player" autocomplete="off">
+                </div>
+
+                <div class="form-group">
+                    <label>Is the player married? <span class="required">*</span></label>
+                    <div class="choice-grid" id="maritalGroup">
+                        <label class="choice"><input type="radio" name="marital" value="Unmarried" required><span>Unmarried</span></label>
+                        <label class="choice"><input type="radio" name="marital" value="Married"><span>Married</span></label>
+                    </div>
+                    <div class="marital-block" id="maritalBlock">
+                        <strong>Sorry — married players are not eligible.</strong><br>
+                        Only unmarried children of JPOS members can take part in Mohan Bagh Khel Utsav.
+                        Please contact Saafal on 8939225539 if you think this is a mistake.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="memberPhone">JPOS Member's Phone Number <span class="required">*</span></label>
+                    <input type="tel" id="memberPhone" name="memberPhone" required placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Player's Phone Number <span class="required">*</span></label>
                     <input type="tel" id="phone" name="phone" required placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
                 </div>
 
                 <div class="form-group">
-                    <label for="dob">Date of Birth <span class="required">*</span></label>
+                    <label for="dob">Player's Date of Birth <span class="required">*</span></label>
                     <input type="date" id="dob" name="dob" required>
-                    <div class="help-text" id="dobHelp">Your age is calculated from this</div>
+                    <div class="help-text" id="dobHelp">The player's age is calculated from this</div>
                 </div>
 
                 <div class="form-group">
-                    <label for="age">Age</label>
+                    <label for="age">Player's Age</label>
                     <input type="number" id="age" name="age" readonly placeholder="Calculated from date of birth">
-                    <div class="help-text">Calculated automatically from your date of birth</div>
+                    <div class="help-text">Calculated automatically from the date of birth</div>
                 </div>
 
                 <!-- Playing Role -->
@@ -581,9 +617,16 @@
             // Show the UPI ID (the QR above encodes the same payment link)
             document.getElementById('payUpiDisplay').textContent = UPI_ID;
 
-            // Keep phone numeric
-            document.getElementById('phone').addEventListener('input', function() {
-                this.value = this.value.replace(/\D/g, '').slice(0, 10);
+            // Keep both phone fields numeric
+            ['phone', 'memberPhone'].forEach(function (id) {
+                document.getElementById(id).addEventListener('input', function () {
+                    this.value = this.value.replace(/\D/g, '').slice(0, 10);
+                });
+            });
+
+            // Married players are not eligible - block the form as soon as it's picked
+            document.querySelectorAll('input[name="marital"]').forEach(function (r) {
+                r.addEventListener('change', applyMaritalRule);
             });
 
             checkCapacity();   // ask the server if this club is already full
@@ -643,6 +686,23 @@
             document.getElementById('refundGroup').classList.add('show');
             const btn = document.querySelector('.submit-btn');
             if (btn) btn.textContent = 'Join Waiting List';
+        }
+
+        // Only unmarried children of members may play. Selecting "Married" reveals the
+        // notice and disables submission; the backend rejects it too, in case the
+        // client-side guard is bypassed.
+        function isMarried() {
+            const sel = document.querySelector('input[name="marital"]:checked');
+            return !!sel && sel.value === 'Married';
+        }
+        function applyMaritalRule() {
+            const married = isMarried();
+            document.getElementById('maritalBlock').classList.toggle('show', married);
+            const btn = document.querySelector('.submit-btn');
+            if (btn) {
+                btn.disabled = married;
+                btn.textContent = married ? 'Not eligible to register' : 'Complete Registration';
+            }
         }
 
         // ---- Copy-to-clipboard helper ----
@@ -759,6 +819,15 @@
                 }
             }
 
+            if (isMarried()) {
+                showError('Only unmarried children of JPOS members can take part. This registration cannot be submitted.', 'Not Eligible');
+                return;
+            }
+            if (document.getElementById('memberPhone').value.trim().length !== 10) {
+                showError("Please enter the JPOS member's 10-digit mobile number.", 'Invalid Member Phone');
+                return;
+            }
+
             const submitBtn = this.querySelector('button[type="submit"]');
             submitBtn.textContent = 'Submitting...';
             submitBtn.disabled = true;
@@ -769,6 +838,9 @@
                 // The backend only writes back to that database when a uid is present,
                 // so leaving it out keeps their records untouched.
                 uid:          '',
+                memberName:   document.getElementById('memberName').value.trim(),
+                memberPhone:  document.getElementById('memberPhone').value.trim(),
+                marital:      (document.querySelector('input[name="marital"]:checked') || {}).value || '',
                 name:         document.getElementById('name').value.trim(),
                 phone:        phone,
                 dob:          dobVal,
