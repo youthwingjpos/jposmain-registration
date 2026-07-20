@@ -201,6 +201,7 @@
             color-scheme: dark;
         }
         input[readonly] { opacity: 0.9; cursor: default; }
+        input.mirrored { border-color: rgba(239, 61, 75, 0.45); background: rgba(200, 16, 46, 0.07); }
         input:focus, textarea:focus {
             outline: none; border-color: var(--red-br); background: rgba(255, 255, 255, 0.08);
             box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.18);
@@ -255,6 +256,12 @@
         .pay-details { flex: 1; min-width: 200px; }
         .pay-details p { margin-bottom: 8px; color: var(--silver); }
         .gpay-number { font-size: 1.5em; font-weight: 800; color: #fff; letter-spacing: 1px; }
+
+        .same-as {
+            display: flex; align-items: center; gap: 8px; margin-top: 8px;
+            font-weight: 500; font-size: 0.88em; color: var(--silver); cursor: pointer;
+        }
+        .same-as input { width: 17px; height: 17px; accent-color: var(--red); cursor: pointer; }
 
         .marital-block {
             display: none; margin-top: 12px; padding: 16px 18px; border-radius: 12px;
@@ -442,6 +449,7 @@
                 <div class="form-group">
                     <label for="name">Player's Name <span class="required">*</span></label>
                     <input type="text" id="name" name="name" required placeholder="Full name of the player" autocomplete="off">
+                    <label class="same-as"><input type="checkbox" id="sameName"> Same as the member's name</label>
                 </div>
 
                 <div class="form-group">
@@ -465,6 +473,7 @@
                 <div class="form-group">
                     <label for="phone">Player's Phone Number <span class="required">*</span></label>
                     <input type="tel" id="phone" name="phone" required placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+                    <label class="same-as"><input type="checkbox" id="samePhone"> Same as the member's number</label>
                 </div>
 
                 <div class="form-group">
@@ -624,6 +633,10 @@
                 });
             });
 
+            // "Same as member" shortcuts - the member may be the player themselves
+            wireSameAs('sameName', 'memberName', 'name');
+            wireSameAs('samePhone', 'memberPhone', 'phone');
+
             // Married players are not eligible - block the form as soon as it's picked
             document.querySelectorAll('input[name="marital"]').forEach(function (r) {
                 r.addEventListener('change', applyMaritalRule);
@@ -653,7 +666,10 @@
                 const stats = await res.json();
                 const st = stats && stats['jposmain'];
                 if (!st || typeof st.spotsLeft !== 'number') return;
-                if (st.spotsLeft <= 0) enterWaitlistMode(st); else showSpotsLeft(st);
+                // Only warn when the club is FULL. The "X of N spots left" banner is
+                // deliberately not shown on this form - the 20-place cap still applies
+                // and the waiting list still kicks in at #21.
+                if (st.spotsLeft <= 0) enterWaitlistMode(st);
             } catch (e) {
                 // Non-fatal: the form still works and the SERVER decides the real
                 // status on submit. We just can't warn them up front.
@@ -686,6 +702,27 @@
             document.getElementById('refundGroup').classList.add('show');
             const btn = document.querySelector('.submit-btn');
             if (btn) btn.textContent = 'Join Waiting List';
+        }
+
+        /**
+         * Ticking "same as member" copies the member's value into the player field and
+         * keeps it in sync while typing. Unticking hands the field back, empty.
+         */
+        function wireSameAs(boxId, sourceId, targetId) {
+            const box = document.getElementById(boxId);
+            const src = document.getElementById(sourceId);
+            const tgt = document.getElementById(targetId);
+            const sync = () => {
+                if (!box.checked) return;
+                tgt.value = src.value;
+                tgt.dispatchEvent(new Event('input'));
+            };
+            box.addEventListener('change', () => {
+                tgt.readOnly = box.checked;
+                tgt.classList.toggle('mirrored', box.checked);
+                if (box.checked) sync(); else tgt.value = '';
+            });
+            src.addEventListener('input', sync);
         }
 
         // Only unmarried children of members may play. Selecting "Married" reveals the
