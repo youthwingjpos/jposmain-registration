@@ -416,7 +416,7 @@
                 <h2>🕒 You're on the Waiting List</h2>
                 <div class="wl-number">Waiting List No. <strong id="waitlistNumber">–</strong></div>
                 <p class="wl-text">
-                    All <strong id="waitlistCapacity">20</strong> JPOSMAIN spots for Mohan Bagh Khel Utsav are already confirmed,
+                    All JPOSMAIN spots for Mohan Bagh Khel Utsav are already confirmed,
                     so your registration has been recorded on the waiting list. If a spot opens up we'll contact you
                     on the mobile number you gave — in waiting list order.
                 </p>
@@ -693,7 +693,7 @@
             b.className = 'capacity-banner cb-full show';
             document.getElementById('cbTitle').textContent = 'Slots Full - Join the Waiting List';
             document.getElementById('cbText').innerHTML =
-                'All <strong>' + st.capacity + '</strong> JPOSMAIN spots are taken' +
+                'All <strong>JPOSMAIN</strong> spots are taken' +
                 (st.waiting ? ' (' + st.waiting + ' already waiting)' : '') + '. ' +
                 'You can still register for the waiting list. <strong>If you get a confirmed spot, ' +
                 'the &#8377;200 is non-refundable. If you don\'t, it is refunded in full</strong> - ' +
@@ -905,7 +905,6 @@
                 // lock), so the number shown here always matches what's saved.
                 if (result.status === 'Waiting List') {
                     document.getElementById('waitlistNumber').textContent = result.waitingNo;
-                    document.getElementById('waitlistCapacity').textContent = result.capacity || 20;
                     const refundGiven = document.getElementById('refundUpi').value.trim();
                     document.getElementById('wlRefund').innerHTML = refundGiven
                         ? '&#128176; Your ₹200 is safe — the fee only becomes non-refundable once your spot is confirmed. '
