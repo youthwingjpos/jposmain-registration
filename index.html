@@ -257,19 +257,10 @@
         .pay-details p { margin-bottom: 8px; color: var(--silver); }
         .gpay-number { font-size: 1.5em; font-weight: 800; color: #fff; letter-spacing: 1px; }
 
-        .same-as {
-            display: flex; align-items: center; gap: 8px; margin-top: 8px;
-            font-weight: 500; font-size: 0.88em; color: var(--silver); cursor: pointer;
-        }
-        .same-as input { width: 17px; height: 17px; accent-color: var(--red); cursor: pointer; }
 
-        .marital-block {
-            display: none; margin-top: 12px; padding: 16px 18px; border-radius: 12px;
-            background: rgba(200, 16, 46, 0.14); border: 1px solid rgba(239, 61, 75, 0.55);
-            color: #fecaca; font-size: 0.93em; line-height: 1.55;
-        }
-        .marital-block.show { display: block; }
-        .marital-block strong { color: #fff; }
+
+        .player-fields { display: none; }
+        .player-fields.show { display: block; }
 
         /* Screenshot upload */
         .upload-box {
@@ -437,32 +428,12 @@
                 <!-- Player Details -->
                 <div class="section-header">Registration Details</div>
                 <p class="help-text" style="margin:-8px 0 18px 0;">
-                    Only <strong>unmarried children of JPOS members</strong> are eligible to play.
+                    A <strong>JPOS member</strong> may play themselves, or register their <strong>unmarried son</strong>.
                 </p>
 
                 <div class="form-group">
                     <label for="memberName">JPOS Member's Name <span class="required">*</span></label>
                     <input type="text" id="memberName" name="memberName" required placeholder="Name of the JPOS member" autocomplete="off">
-                    <div class="help-text">The member whose child is registering</div>
-                </div>
-
-                <div class="form-group">
-                    <label for="name">Player's Name <span class="required">*</span></label>
-                    <input type="text" id="name" name="name" required placeholder="Full name of the player" autocomplete="off">
-                    <label class="same-as"><input type="checkbox" id="sameName"> Same as the member's name</label>
-                </div>
-
-                <div class="form-group">
-                    <label>Is the player married? <span class="required">*</span></label>
-                    <div class="choice-grid" id="maritalGroup">
-                        <label class="choice"><input type="radio" name="marital" value="Unmarried" required><span>Unmarried</span></label>
-                        <label class="choice"><input type="radio" name="marital" value="Married"><span>Married</span></label>
-                    </div>
-                    <div class="marital-block" id="maritalBlock">
-                        <strong>Sorry — married players are not eligible.</strong><br>
-                        Only unmarried children of JPOS members can take part in Mohan Bagh Khel Utsav.
-                        Please contact Saafal on 8939225539 if you think this is a mistake.
-                    </div>
                 </div>
 
                 <div class="form-group">
@@ -471,9 +442,23 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Player's Phone Number <span class="required">*</span></label>
-                    <input type="tel" id="phone" name="phone" required placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
-                    <label class="same-as"><input type="checkbox" id="samePhone"> Same as the member's number</label>
+                    <label>Do you want your unmarried son to play? <span class="required">*</span></label>
+                    <div class="choice-grid" id="sonGroup">
+                        <label class="choice"><input type="radio" name="sonPlays" value="Yes" required><span>Yes — my son is playing</span></label>
+                        <label class="choice"><input type="radio" name="sonPlays" value="No"><span>No — I am playing myself</span></label>
+                    </div>
+                </div>
+
+                <div id="playerFields" class="player-fields">
+                    <div class="form-group">
+                        <label for="name">Player's Name <span class="required">*</span></label>
+                        <input type="text" id="name" name="name" placeholder="Full name of the player" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Player's Phone Number <span class="required">*</span></label>
+                        <input type="tel" id="phone" name="phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -634,12 +619,12 @@
             });
 
             // "Same as member" shortcuts - the member may be the player themselves
-            wireSameAs('sameName', 'memberName', 'name');
-            wireSameAs('samePhone', 'memberPhone', 'phone');
-
-            // Married players are not eligible - block the form as soon as it's picked
-            document.querySelectorAll('input[name="marital"]').forEach(function (r) {
-                r.addEventListener('change', applyMaritalRule);
+            // Show/hide the player fields based on who is playing
+            document.querySelectorAll('input[name="sonPlays"]').forEach(function (r) {
+                r.addEventListener('change', applySonRule);
+            });
+            ['memberName', 'memberPhone'].forEach(function (id) {
+                document.getElementById(id).addEventListener('input', mirrorMemberToPlayer);
             });
 
             checkCapacity();   // ask the server if this club is already full
@@ -705,41 +690,45 @@
         }
 
         /**
-         * Ticking "same as member" copies the member's value into the player field and
-         * keeps it in sync while typing. Unticking hands the field back, empty.
+         * "Do you want your unmarried son to play?"
+         *   Yes -> the son is the player, so ask for his name and number.
+         *   No  -> the member is playing, so the player IS the member; the player
+         *          fields stay hidden and are filled from the member's details.
+         * Eligibility (unmarried son) is stated in the question itself, so there is
+         * no separate marital check.
          */
-        function wireSameAs(boxId, sourceId, targetId) {
-            const box = document.getElementById(boxId);
-            const src = document.getElementById(sourceId);
-            const tgt = document.getElementById(targetId);
-            const sync = () => {
-                if (!box.checked) return;
-                tgt.value = src.value;
-                tgt.dispatchEvent(new Event('input'));
-            };
-            box.addEventListener('change', () => {
-                tgt.readOnly = box.checked;
-                tgt.classList.toggle('mirrored', box.checked);
-                if (box.checked) sync(); else tgt.value = '';
-            });
-            src.addEventListener('input', sync);
+        function sonIsPlaying() {
+            const sel = document.querySelector('input[name="sonPlays"]:checked');
+            return !!sel && sel.value === 'Yes';
+        }
+        function playerIsMember() {
+            const sel = document.querySelector('input[name="sonPlays"]:checked');
+            return !!sel && sel.value === 'No';
         }
 
-        // Only unmarried children of members may play. Selecting "Married" reveals the
-        // notice and disables submission; the backend rejects it too, in case the
-        // client-side guard is bypassed.
-        function isMarried() {
-            const sel = document.querySelector('input[name="marital"]:checked');
-            return !!sel && sel.value === 'Married';
-        }
-        function applyMaritalRule() {
-            const married = isMarried();
-            document.getElementById('maritalBlock').classList.toggle('show', married);
-            const btn = document.querySelector('.submit-btn');
-            if (btn) {
-                btn.disabled = married;
-                btn.textContent = married ? 'Not eligible to register' : 'Complete Registration';
+        function applySonRule() {
+            const son = sonIsPlaying();
+            const box = document.getElementById('playerFields');
+            const nameEl = document.getElementById('name');
+            const phoneEl = document.getElementById('phone');
+
+            box.classList.toggle('show', son);
+            nameEl.required = son;
+            phoneEl.required = son;
+
+            if (son) {
+                // hand the fields back to the son, blank, unless already his
+                if (nameEl.value === document.getElementById('memberName').value) nameEl.value = '';
+                if (phoneEl.value === document.getElementById('memberPhone').value) phoneEl.value = '';
+            } else {
+                mirrorMemberToPlayer();
             }
+        }
+
+        function mirrorMemberToPlayer() {
+            if (sonIsPlaying()) return;
+            document.getElementById('name').value  = document.getElementById('memberName').value;
+            document.getElementById('phone').value = document.getElementById('memberPhone').value;
         }
 
         // ---- Copy-to-clipboard helper ----
@@ -856,8 +845,13 @@
                 }
             }
 
-            if (isMarried()) {
-                showError('Only unmarried children of JPOS members can take part. This registration cannot be submitted.', 'Not Eligible');
+            if (!document.querySelector('input[name="sonPlays"]:checked')) {
+                showError('Please tell us who is playing - you, or your unmarried son.', 'Who Is Playing?');
+                return;
+            }
+            mirrorMemberToPlayer();   // make sure the member's details are copied across
+            if (!document.getElementById('name').value.trim()) {
+                showError("Please enter the player's name.", 'Player Name Needed');
                 return;
             }
             if (document.getElementById('memberPhone').value.trim().length !== 10) {
@@ -877,7 +871,8 @@
                 uid:          '',
                 memberName:   document.getElementById('memberName').value.trim(),
                 memberPhone:  document.getElementById('memberPhone').value.trim(),
-                marital:      (document.querySelector('input[name="marital"]:checked') || {}).value || '',
+                sonPlays:       sonIsPlaying() ? 'Yes' : 'No',
+                playerIsMember: playerIsMember() ? 'Yes' : 'No',
                 name:         document.getElementById('name').value.trim(),
                 phone:        phone,
                 dob:          dobVal,
